@@ -1,0 +1,33 @@
+name: SSH Server Tunnel
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  run_ssh_server:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+
+      - name: Установка OpenSSH
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssh-server
+          
+      - name: Генерация SSH ключей
+        run: |
+          ssh-keygen -t rsa -b 4096 -f $HOME/.ssh/id_rsa -N ""
+          
+      - name: Запуск SSH-сервера
+        run: |
+          sudo service ssh start
+          echo "SSH сервер запущен"
+          ssh -N -R 8080:localhost:8080
+        
+      - name: Проверка IP
+        run: curl ifconfig.me # Проверим, что это IP GitHub Actions
