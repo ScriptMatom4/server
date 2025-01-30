@@ -28,22 +28,12 @@ jobs:
         sudo systemctl start amnesia-vpn
 
     - name: Wait for VPN to establish
-      run: sleep 30
-
-    - name: Verify VPN connection
-      run: |
-        curl ifconfig.me  # Check the external IP to verify VPN connection
+      run: sleep 30  # Даем время VPN для установления соединения
 
     - name: Your VPN-dependent task
       run: |
-        curl ifconfig.me  # Verify VPN is working
+        curl ifconfig.me  # Проверим внешний IP, чтобы убедиться в подключении
 
     - name: Stop VPN container
       run: |
-        sudo systemctl stop amnesia-vpn      - name: Your VPN-dependent task
-        run: |
-          curl ifconfig.me
-
-      - name: Stop VPN container
-        run: |
-          sudo docker stop amnesia-vpn
+        sudo docker stop amnesia-vpn
