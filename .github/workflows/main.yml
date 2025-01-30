@@ -1,14 +1,17 @@
-- name: Start Tailscale and Advertise Exit Node
+name: Tailscale Exit Node
+on: workflow_dispatch  # <--- REMOVE EXTRA SPACES BEFORE "on"
+
+jobs:
+  setup-exit-node:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Tailscale
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+
+      - name: Start Tailscale and Advertise Exit Node
         env:
           AUTH_KEY: ${{ secrets.TAILSCALE_AUTHKEY }}
         run: |
-          sudo tailscale up --authkey=$AUTH_KEY \
-                            --hostname=github-actions-exit-node \
-                            --advertise-exit-node \
-                            --exit-node-allow-lan-access \
-                            --accept-routes
-          
-          # Указываем предпочтительный DERP-сервер (например, Германия)
-          sudo tailscale set --prefs='{"WantDERP": 1, "DERPMap": {"Regions": {"999": {"RegionCode": "DE"}}}}'
-          
+          sudo tailscale up --authkey=$AUTH_KEY --hostname=github-actions-exit-node --advertise-exit-node --derp-server=derp1
           sleep 300  # Keep alive for 5 minutes
