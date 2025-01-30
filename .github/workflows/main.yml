@@ -17,10 +17,10 @@ jobs:
         run: |
           sudo apt-get remove -y containerd
           sudo apt-get autoremove -y
-
-      - name: Clean apt cache and update
-        run: |
           sudo apt-get clean
+
+      - name: Update apt package list
+        run: |
           sudo apt-get update
 
       - name: Install Docker
