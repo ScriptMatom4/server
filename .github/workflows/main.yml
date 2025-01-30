@@ -1,33 +1,18 @@
-name: SSH Server Tunnel
+name: Tailscale Exit Node
+     on: workflow_dispatch
 
-on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
+     jobs:
+       setup-exit-node:
+         runs-on: ubuntu-latest
+         steps:
+           - name: Install Tailscale
+             run: |
+               curl -fsSL https://tailscale.com/install.sh | sh
 
-jobs:
-  run_ssh_server:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v2
-
-      - name: Установка OpenSSH
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y openssh-server
-          
-      - name: Генерация SSH ключей
-        run: |
-          ssh-keygen -t rsa -b 4096 -f $HOME/.ssh/id_rsa -N ""
-          
-      - name: Запуск SSH-сервера
-        run: |
-          sudo service ssh start
-          echo "SSH сервер запущен"
-          ssh -N -R 8080:localhost:8080
-        
-      - name: Проверка IP
-        run: curl ifconfig.me # Проверим, что это IP GitHub Actions
+           - name: Start Tailscale and Advertise Exit Node
+             env:
+               AUTH_KEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+             run: |
+               sudo tailscale up --authkey=$AUTH_KEY --hostname=github-actions-exit-node --advertise-exit-node
+               # Keep the node alive (adjust sleep as needed)
+               sleep 300
