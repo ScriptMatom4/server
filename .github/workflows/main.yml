@@ -27,14 +27,20 @@ jobs:
       run: |
         sudo systemctl start amnesia-vpn
 
-    - name: Run your script
-      run: |
-        # Ваши действия после подключения к VPN
-        curl ifconfig.me  # проверим внешний IP, чтобы убедиться в подключении
-      - name: Wait for VPN to establish
-        run: sleep 30
+    - name: Wait for VPN to establish
+      run: sleep 30
 
-      - name: Your VPN-dependent task
+    - name: Verify VPN connection
+      run: |
+        curl ifconfig.me  # Check the external IP to verify VPN connection
+
+    - name: Your VPN-dependent task
+      run: |
+        curl ifconfig.me  # Verify VPN is working
+
+    - name: Stop VPN container
+      run: |
+        sudo systemctl stop amnesia-vpn      - name: Your VPN-dependent task
         run: |
           curl ifconfig.me
 
