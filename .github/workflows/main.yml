@@ -1,6 +1,5 @@
 name: Tailscale Exit Node
 on: workflow_dispatch  # <--- REMOVE EXTRA SPACES BEFORE "on"
-
 jobs:
   setup-exit-node:
     runs-on: ubuntu-latest
@@ -13,5 +12,8 @@ jobs:
         env:
           AUTH_KEY: ${{ secrets.TAILSCALE_AUTHKEY }}
         run: |
-          sudo tailscale up --authkey=$AUTH_KEY --hostname=github-actions-exit-node --advertise-exit-node
+          sudo tailscale up --authkey=$AUTH_KEY \
+                            --hostname=github-actions-exit-node \
+                            --advertise-exit-node \
+                            --exit-node=fra  # <-- Укажите ближайший DERP-регион
           sleep 300  # Keep alive for 5 minutes
