@@ -1,19 +1,39 @@
-name: Tailscale Exit Node
-on: workflow_dispatch  # <--- REMOVE EXTRA SPACES BEFORE "on"
-jobs:
-  setup-exit-node:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Install Tailscale
-        run: |
-          curl -fsSL https://tailscale.com/install.sh | sh
+name: Temporary VPN
 
-      - name: Start Tailscale and Advertise Exit Node
-        env:
-          AUTH_KEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  vpn:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v2
+
+      - name: Install Docker
         run: |
-          sudo tailscale up --authkey=$AUTH_KEY \
-                            --hostname=github-actions-exit-node \
-                            --advertise-exit-node \
-                            --exit-node=fra  # <-- Укажите ближайший DERP-регион
-          sleep 300  # Keep alive for 5 minutes
+          sudo apt-get update
+          sudo apt-get install -y docker.io
+
+      - name: Run Amnesia VPN container
+        run: |
+          sudo docker run --rm -d \
+            --name amnesia-vpn \
+            --cap-add=NET_ADMIN \
+            --device /dev/net/tun \
+            amnesia/amnesia-vpn
+
+      - name: Wait for VPN to establish
+        run: sleep 30  # Дайте время VPN подключиться
+
+      - name: Your VPN-dependent task
+        run: |
+          # Добавьте сюда ваши команды, которые требуют VPN
+          curl ifconfig.me  # Пример использования VPN для проверки IP
+
+      - name: Stop VPN container
+        run: |
+          sudo docker stop amnesia-vpn
