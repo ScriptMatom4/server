@@ -1,39 +1,22 @@
-name: Temporary VPN with Amnesia VPN
+name: Outline VPN Server
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 jobs:
-  vpn-job:
+  start-vpn:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - name: Установить зависимости
+        run: |
+          sudo apt update
+          sudo apt install -y docker.io curl jq
 
-    - name: Install OpenVPN
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y openvpn
+      - name: Запустить Outline VPN сервер
+        run: |
+          docker run -d --name outline-server -p 8388:8388 \
+          -e ACCESS_KEY="123" \
+          ghcr.io/jorgeandrada/outline-ss-server:latest
 
-    - name: Install Amnesia VPN
-      run: |
-        git clone https://github.com/amnesia-vpn/amnesia.git
-        cd amnesia
-        sudo ./install.sh
-
-    - name: Start Amnesia VPN
-      run: |
-        sudo systemctl start amnesia-vpn
-
-    - name: Wait for VPN to establish
-      run: sleep 30  # Даем время VPN для установления соединения
-
-    - name: Your VPN-dependent task
-      run: |
-        curl ifconfig.me  # Проверим внешний IP, чтобы убедиться в подключении
-
-    - name: Stop VPN container
-      run: |
-        sudo docker stop amnesia-vpn
+      - name: Вывести IP-адрес runner'а
+        run: curl ifconfig.me
