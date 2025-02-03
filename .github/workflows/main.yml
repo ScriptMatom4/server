@@ -1,16 +1,21 @@
 name: Outline VPN on GitHub Actions
 
 on:
-  workflow_dispatch:  # Запуск вручную
+  workflow_dispatch:
 
 jobs:
   outline:
     runs-on: ubuntu-latest
     steps:
-      - name: Установка Docker
+      - name: Удаление возможных конфликтующих пакетов
         run: |
+          sudo apt-get remove -y containerd.io || true
+          sudo apt-get autoremove -y
           sudo apt-get update
-          sudo apt-get install -y docker.io
+
+      - name: Установка Docker без containerd.io
+        run: |
+          sudo apt-get install -y docker-ce docker-ce-cli containerd
 
       - name: Запуск Outline VPN
         run: |
