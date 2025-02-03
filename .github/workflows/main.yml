@@ -1,22 +1,23 @@
-name: Outline VPN Server
+name: Outline VPN on GitHub Actions
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:  # Запуск вручную
 
 jobs:
-  start-vpn:
+  outline:
     runs-on: ubuntu-latest
     steps:
-      - name: Установить зависимости
+      - name: Установка Docker
         run: |
-          sudo apt update
-          sudo apt install -y docker.io curl jq
+          sudo apt-get update
+          sudo apt-get install -y docker.io
 
-      - name: Запустить Outline VPN сервер
+      - name: Запуск Outline VPN
         run: |
-          docker run -d --name outline-server -p 8388:8388 \
-          -e ACCESS_KEY="123" \
-          ghcr.io/jorgeandrada/outline-ss-server:latest
+          docker run -d --name outline-server \
+            -p 1024-65535:1024-65535/udp \
+            -p 1024-65535:1024-65535/tcp \
+            quay.io/outline/shadowbox:stable
 
-      - name: Вывести IP-адрес runner'а
-        run: curl ifconfig.me
+      - name: Проверка логов
+        run: docker logs outline-server
