@@ -1,28 +1,30 @@
-name: Outline VPN on GitHub Actions
+name: Setup Outline VPN
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
-  outline:
+  outline-vpn-setup:
     runs-on: ubuntu-latest
     steps:
-      - name: Удаление возможных конфликтующих пакетов
-        run: |
-          sudo apt-get remove -y containerd.io || true
-          sudo apt-get autoremove -y
-          sudo apt-get update
+      - name: Checkout repository
+        uses: actions/checkout@v2
 
-      - name: Установка Docker без containerd.io
-        run: |
-          sudo apt-get install -y docker-ce docker-ce-cli containerd
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v2
 
-      - name: Запуск Outline VPN
-        run: |
-          docker run -d --name outline-server \
-            -p 1024-65535:1024-65535/udp \
-            -p 1024-65535:1024-65535/tcp \
-            quay.io/outline/shadowbox:stable
+      - name: Pull Outline VPN Docker image
+        run: docker pull outline/outline-server:latest
 
-      - name: Проверка логов
-        run: docker logs outline-server
+      - name: Run Outline VPN container
+        run: |
+          docker run -d --name outline-vpn -p 80:80 outline/outline-server
+          
+      - name: Get server public IP
+        run: curl ifconfig.me
+
+      - name: Output VPN details
+        run: |
+          echo "Outline VPN Server running at: $(curl -s ifconfig.me)"
