@@ -1,28 +1,48 @@
-name: Setup Tailscale on Windows
+name: Windows Tailscale Setup & RDP
 
 on:
   push:
     branches:
-      - main  # Запускать при коммите в main, можно изменить
+      - main
 
 jobs:
-  setup-tailscale:
+  setup:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Download and Install Tailscale
+      - name: Скачиваем установщик Tailscale
+        shell: powershell
         run: |
-          Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup.exe" -OutFile "tailscale-setup.exe"
-          Start-Process -FilePath ".\tailscale-setup.exe" -ArgumentList "/quiet" -Wait
+          Write-Output "Скачиваем tailscale-setup.exe..."
+          Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup.exe" -OutFile "$env:TEMP\tailscale-setup.exe"
 
-      - name: Authenticate Tailscale
+      - name: Устанавливаем Tailscale
+        shell: powershell
         run: |
-          tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }}
+          Write-Output "Устанавливаем Tailscale в тихом режиме..."
+          # Параметр /S – тихая установка; убедитесь, что он поддерживается вашей версией установщика
+          Start-Process -FilePath "$env:TEMP\tailscale-setup.exe" -ArgumentList "/S" -Wait
 
-      - name: Enable RDP
+      - name: Запускаем Tailscale с authkey
+        shell: powershell
+        env:
+          TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
         run: |
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -Value 0
+          Write-Output "Поднимаем Tailscale VPN..."
+          # Путь может отличаться в зависимости от версии или настроек установки
+          $tailscaleExe = "C:\Program Files\Tailscale IPN\tailscale.exe"
+          if (Test-Path $tailscaleExe) {
+              & $tailscaleExe up --authkey $env:TAILSCALE_AUTHKEY
+          } else {
+              Write-Error "Не найден tailscale.exe по пути: $tailscaleExe"
+              exit 1
+          }
+
+      - name: Включаем RDP
+        shell: powershell
+        run: |
+          Write-Output "Включаем удалённый рабочий стол (RDP)..."
+          # Разрешаем подключения по RDP путём изменения системного реестра:
+          Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -Value 0
+          # Включаем правила брандмауэра для RDP:
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
