@@ -1,83 +1,28 @@
-name: Deploy VLESS Server
+name: Setup Tailscale on Windows
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main  # Запускать при коммите в main, можно изменить
 
 jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
+  setup-tailscale:
+    runs-on: windows-latest
 
     steps:
-      # Шаг 1. Клонирование репозитория
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      # Шаг 2. Создание файла Dockerfile
-      - name: Create Dockerfile
+      - name: Download and Install Tailscale
         run: |
-          cat <<'EOF' > Dockerfile
-          FROM v2fly/v2fly-core
-          COPY config.json /etc/v2ray/config.json
-          CMD ["/usr/bin/v2ray", "-config", "/etc/v2ray/config.json"]
-          EOF
-          echo "Dockerfile created successfully."
+          Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup.exe" -OutFile "tailscale-setup.exe"
+          Start-Process -FilePath ".\tailscale-setup.exe" -ArgumentList "/quiet" -Wait
 
-      # Шаг 3. Создание файла config.json с автоматически сгенерированным UUID
-      - name: Create config.json
+      - name: Authenticate Tailscale
         run: |
-          # Устанавливаем утилиту uuidgen (если не установлена)
-          if ! command -v uuidgen &> /dev/null; then
-            sudo apt-get update && sudo apt-get install -y uuid-runtime
-          fi
-          UUID=$(uuidgen)
-          cat <<EOF > config.json
-          {
-            "inbounds": [
-              {
-                "port": 443,
-                "protocol": "vless",
-                "settings": {
-                  "clients": [
-                    {
-                      "id": "$UUID",
-                      "flow": ""
-                    }
-                  ],
-                  "decryption": "none"
-                },
-                "streamSettings": {
-                  "network": "tcp"
-                }
-              }
-            ],
-            "outbounds": [
-              {
-                "protocol": "freedom",
-                "settings": {}
-              }
-            ]
-          }
-          EOF
-          echo "config.json created with UUID: $UUID"
+          tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }}
 
-      # Шаг 4. Настройка Docker Buildx (опционально, для мультиплатформенной сборки)
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      # Шаг 5. Логин в Docker Hub
-      # Убедитесь, что в настройках репозитория добавлены секреты:
-      # DOCKERHUB_USERNAME и DOCKERHUB_TOKEN
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      # Шаг 6. Сборка и пуш Docker-образа
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          push: true
-          tags: your-dockerhub-username/v2ray-vless:latest
+      - name: Enable RDP
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
