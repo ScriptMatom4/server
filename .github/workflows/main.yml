@@ -1,4 +1,4 @@
-name: Windows Tailscale Setup & RDP
+name: Deploy VLESS
 
 on:
   push:
@@ -6,35 +6,51 @@ on:
       - main
 
 jobs:
-  setup:
-    runs-on: windows-latest
-
+  deploy:
+    runs-on: ubuntu-latest
     steps:
-      - name: Скачиваем установщик Tailscale
-        shell: powershell
+      - name: Install Xray
         run: |
-          Write-Output "Скачиваем tailscale-setup.exe..."
-          Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe" -OutFile "$env:TEMP\tailscale-setup.exe"
+          curl -O https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh
+          bash install-release.sh
 
-      - name: Устанавливаем Tailscale
-        shell: powershell
+      - name: Configure VLESS
         run: |
-          Write-Output "Устанавливаем Tailscale в тихом режиме..."
-          # Параметр /S – тихая установка; убедитесь, что он поддерживается вашей версией установщика
-          Start-Process -FilePath "$env:TEMP\tailscale-setup.exe" -ArgumentList "/S" -Wait
+          mkdir -p /etc/xray
+          cat <<EOF > /etc/xray/config.json
+          {
+            "inbounds": [{
+              "port": 443,
+              "protocol": "vless",
+              "settings": {
+                "clients": [{
+                  "id": "12345678-90ab-cdef-1234-567890abcdef",
+                  "flow": "xtls-rprx-vision"
+                }],
+                "decryption": "none"
+              },
+              "streamSettings": {
+                "network": "ws",
+                "security": "tls",
+                "tlsSettings": {
+                  "certificates": [{
+                    "certificateFile": "/etc/xray/fullchain.pem",
+                    "keyFile": "/etc/xray/privkey.pem"
+                  }]
+                }
+              }
+            }],
+            "outbounds": [{
+              "protocol": "freedom"
+            }]
+          }
+          EOF
+          systemctl restart xray
 
-      - name: Запускаем Tailscale с authkey
-        shell: powershell
-        env:
-          TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+      - name: Show VLESS Link
         run: |
-          Write-Output "Поднимаем Tailscale VPN..."
-          # Путь может отличаться в зависимости от версии или настроек установки
-          $tailscaleExe = "C:\Program Files\Tailscale IPN\tailscale.exe"
-          if (Test-Path $tailscaleExe) {
-              & $tailscaleExe up --authkey $env:TAILSCALE_AUTHKEY
-          } else {
-              Write-Error "Не найден tailscale.exe по пути: $tailscaleExe"
+          echo "VLESS Link:"
+          echo "vless://12345678-90ab-cdef-1234-567890abcdef@your-server-ip:443?security=tls&type=ws"              Write-Error "Не найден tailscale.exe по пути: $tailscaleExe"
               exit 1
           }
 
