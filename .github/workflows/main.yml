@@ -50,31 +50,4 @@ jobs:
       - name: Show VLESS Link
         run: |
           echo "VLESS Link:"
-          echo "vless://12345678-90ab-cdef-1234-567890abcdef@your-server-ip:443?security=tls&type=ws"                    "certificateFile": "/etc/xray/fullchain.pem",
-                    "keyFile": "/etc/xray/privkey.pem"
-                  }]
-                }
-              }
-            }],
-            "outbounds": [{
-              "protocol": "freedom"
-            }]
-          }
-          EOF
-          systemctl restart xray
-
-      - name: Show VLESS Link
-        run: |
-          echo "VLESS Link:"
-          echo "vless://12345678-90ab-cdef-1234-567890abcdef@your-server-ip:443?security=tls&type=ws"              Write-Error "Не найден tailscale.exe по пути: $tailscaleExe"
-              exit 1
-          }
-
-      - name: Включаем RDP
-        shell: powershell
-        run: |
-          Write-Output "Включаем удалённый рабочий стол (RDP)..."
-          # Разрешаем подключения по RDP путём изменения системного реестра:
-          Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -Value 0
-          # Включаем правила брандмауэра для RDP:
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          echo "vless://12345678-90ab-cdef-1234-567890abcdef@your-server-ip:443?security=tls&type=ws"
