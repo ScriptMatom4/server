@@ -45,9 +45,13 @@ jobs:
             }]
           }
           EOF
+          sudo systemctl enable xray
           sudo systemctl restart xray
 
       - name: Show VLESS Link
         run: |
           echo "VLESS Link:"
           echo "vless://12345678-90ab-cdef-1234-567890abcdef@your-server-ip:443?security=tls&type=ws"
+
+      - name: Keep Alive
+        run: tail -f /dev/null
