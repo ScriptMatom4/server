@@ -11,13 +11,13 @@ jobs:
     steps:
       - name: Install Xray
         run: |
-          curl -O https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh
-          bash install-release.sh
+          sudo curl -O https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh
+          sudo bash install-release.sh
 
       - name: Configure VLESS
         run: |
-          mkdir -p /etc/xray
-          cat <<EOF > /etc/xray/config.json
+          sudo mkdir -p /etc/xray
+          sudo tee /etc/xray/config.json > /dev/null <<EOF
           {
             "inbounds": [{
               "port": 443,
@@ -35,6 +35,22 @@ jobs:
                 "tlsSettings": {
                   "certificates": [{
                     "certificateFile": "/etc/xray/fullchain.pem",
+                    "keyFile": "/etc/xray/privkey.pem"
+                  }]
+                }
+              }
+            }],
+            "outbounds": [{
+              "protocol": "freedom"
+            }]
+          }
+          EOF
+          sudo systemctl restart xray
+
+      - name: Show VLESS Link
+        run: |
+          echo "VLESS Link:"
+          echo "vless://12345678-90ab-cdef-1234-567890abcdef@your-server-ip:443?security=tls&type=ws"                    "certificateFile": "/etc/xray/fullchain.pem",
                     "keyFile": "/etc/xray/privkey.pem"
                   }]
                 }
