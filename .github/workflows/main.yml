@@ -1,109 +1,99 @@
-name: Deploy VLESS VPN
+name: Deploy VLESS VPN on Server
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
 
+    steps:
+      # Шаг 1: Проверка кода
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      # Шаг 2: Настройка SSH для подключения к серверу
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      # Шаг 3: Установка зависимостей на сервере
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y uuid-runtime curl
+          ssh -o StrictHostKeyChecking=no username@your-server-ip << 'EOF'
+            sudo apt update
+            sudo apt install -y wget unzip
+            sudo apt install -y curl
+            sudo apt install -y ufw
+            sudo ufw allow 443/tcp
+            sudo ufw enable
+          EOF
 
-      - name: Generate UUID and X25519 keys
-        id: generate
+      # Шаг 4: Установка Xray (или V2Ray)
+      - name: Install Xray (VLESS)
         run: |
-          UUID=$(uuidgen)
-          echo "UUID=$UUID" >> $GITHUB_ENV
-          curl -L https://github.com/XTLS/Xray-core/releases/latest/download/xray-linux-64.zip -o xray.zip
-          unzip xray.zip xray
-          chmod +x xray
-          KEYS=$(./xray x25519)
-          PRIVATE_KEY=$(echo "$KEYS" | grep "Private key" | awk '{print $3}')
-          PUBLIC_KEY=$(echo "$KEYS" | grep "Public key" | awk '{print $3}')
-          echo "PRIVATE_KEY=$PRIVATE_KEY" >> $GITHUB_ENV
-          echo "PUBLIC_KEY=$PUBLIC_KEY" >> $GITHUB_ENV
+          ssh -o StrictHostKeyChecking=no username@your-server-ip << 'EOF'
+            wget https://github.com/XTLS/Xray-core/releases/download/v1.8.0/Xray-linux-amd64-v1.8.0.tar.gz
+            tar -xvzf Xray-linux-amd64-v1.8.0.tar.gz
+            sudo mv xray /usr/local/bin/xray
+            sudo chmod +x /usr/local/bin/xray
+          EOF
 
-      - name: Create VLESS config
+      # Шаг 5: Конфигурация Xray
+      - name: Configure Xray
         run: |
-          cat << EOF > config.json
-          {
-            "log": {
-              "loglevel": "warning"
-            },
-            "inbounds": [
-              {
-                "port": 443,
-                "protocol": "vless",
-                "settings": {
-                  "clients": [
-                    {
-                      "id": "${{ env.UUID }}",
-                      "flow": "xtls-rprx-vision"
+          ssh -o StrictHostKeyChecking=no username@your-server-ip << 'EOF'
+            mkdir -p /etc/xray
+            echo '{
+              "inbounds": [
+                {
+                  "port": 443,
+                  "listen": "0.0.0.0",
+                  "protocol": "vless",
+                  "settings": {
+                    "clients": [
+                      {
+                        "id": "your-uuid", 
+                        "alterId": 64
+                      }
+                    ]
+                  },
+                  "streamSettings": {
+                    "network": "tcp",
+                    "security": "tls",
+                    "tlsSettings": {
+                      "certificates": [
+                        {
+                          "certificateFile": "/etc/ssl/certs/your-certificate.crt",
+                          "keyFile": "/etc/ssl/private/your-private.key"
+                        }
+                      ]
                     }
-                  ],
-                  "decryption": "none"
-                },
-                "streamSettings": {
-                  "network": "tcp",
-                  "security": "reality",
-                  "realitySettings": {
-                    "dest": "example.com:443",
-                    "serverNames": ["example.com"],
-                    "privateKey": "${{ env.PRIVATE_KEY }}",
-                    "publicKey": "${{ env.PUBLIC_KEY }}",
-                    "shortIds": ["abcd1234"]
                   }
                 }
-              }
-            ],
-            "outbounds": [
-              {
-                "protocol": "freedom"
-              }
-            ]
-          }
+              ],
+              "outbounds": [
+                {
+                  "protocol": "freedom"
+                }
+              ]
+            }' | sudo tee /etc/xray/config.json
           EOF
 
-      - name: Install SSH key
-        uses: shimataro/ssh-key-action@v2
-        with:
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          known_hosts: ${{ secrets.KNOWN_HOSTS }}
-
-      - name: Deploy to VPS
+      # Шаг 6: Запуск Xray
+      - name: Start Xray
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} << 'EOF'
-            if ! command -v xray &> /dev/null; then
-              bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
-            fi
-            sudo mkdir -p /usr/local/etc/xray
-            sudo tee /usr/local/etc/xray/config.json > /dev/null << 'CONFIG'
-          $(cat config.json)
-          CONFIG
-            sudo systemctl restart xray
+          ssh -o StrictHostKeyChecking=no username@your-server-ip << 'EOF'
             sudo systemctl enable xray
+            sudo systemctl start xray
           EOF
 
-      - name: Generate VLESS URL
+      # Шаг 7: Проверка статуса Xray
+      - name: Check Xray status
         run: |
-          VLESS_URL="vless://${{ env.UUID }}@${{ secrets.VPS_IP }}:443?security=reality&flow=xtls-rprx-vision&dest=example.com:443&sni=example.com&sid=abcd1234#My-VLESS"
-          echo "VLESS URL: $VLESS_URL"
-          echo "VLESS_URL=$VLESS_URL" >> $GITHUB_ENV
-
-      # Обновляем действие на v4
-      - name: Upload VLESS URL as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: vless-url
-          path: |
-            echo "${{ env.VLESS_URL }}" > vless-url.txt
-            vless-url.txt
+          ssh -o StrictHostKeyChecking=no username@your-server-ip << 'EOF'
+            sudo systemctl status xray
+          EOF
