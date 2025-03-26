@@ -1,57 +1,120 @@
-name: Deploy VLESS
+name: Deploy VLESS VPN
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch: # Позволяет запускать вручную
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Install Xray
-        run: |
-          sudo curl -O https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh
-          sudo bash install-release.sh
+      # Шаг 1: Клонируем репозиторий
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      - name: Configure VLESS
+      # Шаг 2: Устанавливаем зависимости (uuidgen и Xray для генерации ключей)
+      - name: Install dependencies
         run: |
-          sudo mkdir -p /etc/xray
-          sudo tee /etc/xray/config.json > /dev/null <<EOF
+          sudo apt-get update
+          sudo apt-get install -y uuid-runtime curl
+
+      # Шаг 3: Генерируем UUID и ключи X25519 для REALITY
+      - name: Generate UUID and X25519 keys
+        id: generate
+        run: |
+          UUID=$(uuidgen)
+          echo "UUID=$UUID" >> $GITHUB_ENV
+          curl -L https://github.com/XTLS/Xray-core/releases/latest/download/xray-linux-64.zip -o xray.zip
+          unzip xray.zip xray
+          chmod +x xray
+          KEYS=$(./xray x25519)
+          PRIVATE_KEY=$(echo "$KEYS" | grep "Private key" | awk '{print $3}')
+          PUBLIC_KEY=$(echo "$KEYS" | grep "Public key" | awk '{print $3}')
+          echo "PRIVATE_KEY=$PRIVATE_KEY" >> $GITHUB_ENV
+          echo "PUBLIC_KEY=$PUBLIC_KEY" >> $GITHUB_ENV
+
+      # Шаг 4: Создаём конфигурацию VLESS
+      - name: Create VLESS config
+        run: |
+          cat << EOF > config.json
           {
-            "inbounds": [{
-              "port": 443,
-              "protocol": "vless",
-              "settings": {
-                "clients": [{
-                  "id": "12345678-90ab-cdef-1234-567890abcdef",
-                  "flow": "xtls-rprx-vision"
-                }],
-                "decryption": "none"
-              },
-              "streamSettings": {
-                "network": "ws",
-                "security": "tls",
-                "tlsSettings": {
-                  "certificates": [{
-                    "certificateFile": "/etc/xray/fullchain.pem",
-                    "keyFile": "/etc/xray/privkey.pem"
-                  }]
+            "log": {
+              "loglevel": "warning"
+            },
+            "inbounds": [
+              {
+                "port": 443,
+                "protocol": "vless",
+                "settings": {
+                  "clients": [
+                    {
+                      "id": "${{ env.UUID }}",
+                      "flow": "xtls-rprx-vision"
+                    }
+                  ],
+                  "decryption": "none"
+                },
+                "streamSettings": {
+                  "network": "tcp",
+                  "security": "reality",
+                  "realitySettings": {
+                    "dest": "example.com:443",
+                    "serverNames": ["example.com"],
+                    "privateKey": "${{ env.PRIVATE_KEY }}",
+                    "publicKey": "${{ env.PUBLIC_KEY }}",
+                    "shortIds": ["abcd1234"]
+                  }
                 }
               }
-            }],
-            "outbounds": [{
-              "protocol": "freedom"
-            }]
+            ],
+            "outbounds": [
+              {
+                "protocol": "freedom"
+              }
+            ]
           }
           EOF
-          sudo systemctl enable xray
-          sudo systemctl restart xray
 
-      - name: Show VLESS Link
+      # Шаг 5: Настраиваем SSH-доступ
+      - name: Install SSH key
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known_hosts: ${{ secrets.KNOWN_HOSTS }}
+
+      # Шаг 6: Деплой на VPS
+      - name: Deploy to VPS
         run: |
-          echo "VLESS Link:"
-          echo "vless://12345678-90ab-cdef-1234-567890abcdef@your-server-ip:443?security=tls&type=ws"
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} << 'EOF'
+            # Установка Xray, если ещё не установлен
+            if ! command -v xray &> /dev/null; then
+              bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
+            fi
+            # Создание директории для конфигурации
+            sudo mkdir -p /usr/local/etc/xray
+            # Копирование конфигурации
+            sudo tee /usr/local/etc/xray/config.json > /dev/null << 'CONFIG'
+          $(cat config.json)
+          CONFIG
+            # Перезапуск Xray
+            sudo systemctl restart xray
+            sudo systemctl enable xray
+          EOF
 
-      - name: Keep Alive
-        run: tail -f /dev/null
+      # Шаг 7: Выводим ссылку для клиента
+      - name: Generate VLESS URL
+        run: |
+          VLESS_URL="vless://${{ env.UUID }}@${{ secrets.VPS_IP }}:443?security=reality&flow=xtls-rprx-vision&dest=example.com:443&sni=example.com&sid=abcd1234#My-VLESS"
+          echo "VLESS URL: $VLESS_URL"
+          echo "VLESS_URL=$VLESS_URL" >> $GITHUB_ENV
+
+      # Шаг 8: Сохраняем ссылку как артефакт
+      - name: Upload VLESS URL as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: vless-url
+          path: |
+            echo "${{ env.VLESS_URL }}" > vless-url.txt
+            vless-url.txt
