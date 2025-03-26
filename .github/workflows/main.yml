@@ -1,4 +1,4 @@
-name: Deploy VLESS VPN on Server
+name: Deploy VLESS
 
 on:
   push:
@@ -8,92 +8,50 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-      # Шаг 1: Проверка кода
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      # Шаг 2: Настройка SSH для подключения к серверу
-      - name: Set up SSH
-        uses: webfactory/ssh-agent@v0.5.3
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      # Шаг 3: Установка зависимостей на сервере
-      - name: Install dependencies
+      - name: Install Xray
         run: |
-          ssh -o StrictHostKeyChecking=no username@your-server-ip << 'EOF'
-            sudo apt update
-            sudo apt install -y wget unzip
-            sudo apt install -y curl
-            sudo apt install -y ufw
-            sudo ufw allow 443/tcp
-            sudo ufw enable
-          EOF
+          sudo curl -O https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh
+          sudo bash install-release.sh
 
-      # Шаг 4: Установка Xray (или V2Ray)
-      - name: Install Xray (VLESS)
+      - name: Configure VLESS
         run: |
-          ssh -o StrictHostKeyChecking=no username@your-server-ip << 'EOF'
-            wget https://github.com/XTLS/Xray-core/releases/download/v1.8.0/Xray-linux-amd64-v1.8.0.tar.gz
-            tar -xvzf Xray-linux-amd64-v1.8.0.tar.gz
-            sudo mv xray /usr/local/bin/xray
-            sudo chmod +x /usr/local/bin/xray
-          EOF
-
-      # Шаг 5: Конфигурация Xray
-      - name: Configure Xray
-        run: |
-          ssh -o StrictHostKeyChecking=no username@your-server-ip << 'EOF'
-            mkdir -p /etc/xray
-            echo '{
-              "inbounds": [
-                {
-                  "port": 443,
-                  "listen": "0.0.0.0",
-                  "protocol": "vless",
-                  "settings": {
-                    "clients": [
-                      {
-                        "id": "your-uuid", 
-                        "alterId": 64
-                      }
-                    ]
-                  },
-                  "streamSettings": {
-                    "network": "tcp",
-                    "security": "tls",
-                    "tlsSettings": {
-                      "certificates": [
-                        {
-                          "certificateFile": "/etc/ssl/certs/your-certificate.crt",
-                          "keyFile": "/etc/ssl/private/your-private.key"
-                        }
-                      ]
-                    }
-                  }
+          sudo mkdir -p /etc/xray
+          sudo tee /etc/xray/config.json > /dev/null <<EOF
+          {
+            "inbounds": [{
+              "port": 443,
+              "protocol": "vless",
+              "settings": {
+                "clients": [{
+                  "id": "12345678-90ab-cdef-1234-567890abcdef",
+                  "flow": "xtls-rprx-vision"
+                }],
+                "decryption": "none"
+              },
+              "streamSettings": {
+                "network": "ws",
+                "security": "tls",
+                "tlsSettings": {
+                  "certificates": [{
+                    "certificateFile": "/etc/xray/fullchain.pem",
+                    "keyFile": "/etc/xray/privkey.pem"
+                  }]
                 }
-              ],
-              "outbounds": [
-                {
-                  "protocol": "freedom"
-                }
-              ]
-            }' | sudo tee /etc/xray/config.json
+              }
+            }],
+            "outbounds": [{
+              "protocol": "freedom"
+            }]
+          }
           EOF
+          sudo systemctl enable xray
+          sudo systemctl restart xray
 
-      # Шаг 6: Запуск Xray
-      - name: Start Xray
+      - name: Show VLESS Link
         run: |
-          ssh -o StrictHostKeyChecking=no username@your-server-ip << 'EOF'
-            sudo systemctl enable xray
-            sudo systemctl start xray
-          EOF
+          echo "VLESS Link:"
+          echo "vless://12345678-90ab-cdef-1234-567890abcdef@your-server-ip:443?security=tls&type=ws"
 
-      # Шаг 7: Проверка статуса Xray
-      - name: Check Xray status
-        run: |
-          ssh -o StrictHostKeyChecking=no username@your-server-ip << 'EOF'
-            sudo systemctl status xray
-          EOF
+      - name: Keep Alive
+        run: tail -f /dev/null
