@@ -50,8 +50,6 @@ jobs:
 
       - name: Show VLESS Link
         run: |
+          SERVER_IP=$(curl -s ifconfig.me)
           echo "VLESS Link:"
-          echo "vless://12345678-90ab-cdef-1234-567890abcdef@your-server-ip:443?security=tls&type=ws"
-
-      - name: Keep Alive
-        run: tail -f /dev/null
+          echo "vless://12345678-90ab-cdef-1234-567890abcdef@$SERVER_IP:443?security=tls&type=ws"
