@@ -1,58 +1,27 @@
-name: Deploy VLESS
+name: View Bot
 
 on:
-  push:
-    branches:
-      - main
+  schedule:
+    - cron: '*/10 * * * *' # Запуск каждые 10 минут
+  workflow_dispatch:
 
 jobs:
-  deploy:
+  view:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Install Xray
-        run: |
-          sudo curl -O https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh
-          sudo bash install-release.sh
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
-      - name: Configure VLESS
+      - name: Install dependencies
         run: |
-          sudo mkdir -p /etc/xray
-          sudo tee /etc/xray/config.json > /dev/null <<EOF
-          {
-            "inbounds": [{
-              "port": 443,
-              "protocol": "vless",
-              "settings": {
-                "clients": [{
-                  "id": "12345678-90ab-cdef-1234-567890abcdef",
-                  "flow": "xtls-rprx-vision"
-                }],
-                "decryption": "none"
-              },
-              "streamSettings": {
-                "network": "ws",
-                "security": "tls",
-                "tlsSettings": {
-                  "certificates": [{
-                    "certificateFile": "/etc/xray/fullchain.pem",
-                    "keyFile": "/etc/xray/privkey.pem"
-                  }]
-                }
-              }
-            }],
-            "outbounds": [{
-              "protocol": "freedom"
-            }]
-          }
-          EOF
-          sudo systemctl enable xray
-          sudo systemctl restart xray
+          sudo apt update
+          sudo apt install -y curl
 
-      - name: Show VLESS Link
+      - name: Send views
         run: |
-          SERVER_IP=$(curl -s ifconfig.me)
-          echo "VLESS Link:"
-          echo "vless://12345678-90ab-cdef-1234-567890abcdef@$SERVER_IP:443?security=tls&type=ws"
-
-      - name: Keep Alive
-        run: tail -f /dev/null
+          for i in {1..10}; do
+            curl -s "https://rscripts.net/script/velocity-v2-98percent-unc-keyless-zMEq" > /dev/null
+            echo "View $i sent"
+            sleep 5
+          done
