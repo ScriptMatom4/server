@@ -20,8 +20,8 @@ jobs:
 
       - name: Send views
         run: |
-          for i in {1..10}; do
+          for i in {1..100}; do
             curl -s "https://rscripts.net/script/velocity-v2-98percent-unc-keyless-zMEq" > /dev/null
             echo "View $i sent"
-            sleep 5
+            sleep 3
           done
