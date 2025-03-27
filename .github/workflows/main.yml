@@ -23,5 +23,5 @@ jobs:
           for i in {1..100}; do
             curl -s "https://rscripts.net/script/velocity-v2-98percent-unc-keyless-zMEq" > /dev/null
             echo "View $i sent"
-            sleep 3
+            sleep 1
           done
