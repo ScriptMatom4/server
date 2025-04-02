@@ -9,10 +9,13 @@ jobs:
     timeout-minutes: 360  # Ограничение в 6 часов
 
     steps:
-      - name: Установка Xray
+      - name: Установка зависимостей
         run: |
           sudo apt update
           sudo apt install -y curl unzip
+
+      - name: Установка Xray
+        run: |
           curl -Lo xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
           unzip xray.zip -d xray
           chmod +x xray/xray
@@ -26,7 +29,7 @@ jobs:
           {
             "inbounds": [
               {
-                "port": 443,
+                "port": 8080,
                 "protocol": "vless",
                 "settings": {
                   "clients": [
@@ -54,14 +57,25 @@ jobs:
           }
           EOF
 
-      - name: Запуск Xray
+      - name: Установка Cloudflare Tunnel
+        run: |
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+          chmod +x cloudflared
+
+      - name: Запуск Xray и Cloudflare Tunnel
         run: |
           nohup ./xray/xray -c config.json > xray.log 2>&1 &
+          nohup ./cloudflared tunnel --url http://localhost:8080 > tunnel.log 2>&1 &
+          sleep 5  # Даем время Cloudflare запуститься
+          echo "TUNNEL_URL=$(grep -o 'https://.*trycloudflare.com' tunnel.log | head -1)" >> $GITHUB_ENV
 
       - name: Вывод информации
         run: |
           echo "### VLESS Configuration" >> $GITHUB_STEP_SUMMARY
           echo "- **UUID:** $UUID" >> $GITHUB_STEP_SUMMARY
-          echo "- **Server IP:** $(curl -s ifconfig.me)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tunnel URL:** $TUNNEL_URL" >> $GITHUB_STEP_SUMMARY
           echo "- **Port:** 443" >> $GITHUB_STEP_SUMMARY
           echo "- **WebSocket Path:** /vless" >> $GITHUB_STEP_SUMMARY
+          
+      - name: Удержание процесса активным
+        run: tail -f /dev/null
