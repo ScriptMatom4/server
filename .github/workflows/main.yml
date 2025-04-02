@@ -1,27 +1,68 @@
-name: View Bot
+name: Run Xray (VLESS) in GitHub Actions
 
 on:
-  schedule:
-    - cron: '*/10 * * * *' # Запуск каждые 10 минут
-  workflow_dispatch:
+  workflow_dispatch:  # Запуск вручную
 
 jobs:
-  view:
+  run-xray:
     runs-on: ubuntu-latest
+    timeout-minutes: 360  # Ограничение в 6 часов
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
-
-      - name: Install dependencies
+      - name: Установка Xray
         run: |
           sudo apt update
-          sudo apt install -y curl
+          sudo apt install -y curl unzip
+          curl -Lo xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
+          unzip xray.zip -d xray
+          chmod +x xray/xray
 
-      - name: Send views
+      - name: Генерация UUID
+        run: echo "UUID=$(cat /proc/sys/kernel/random/uuid)" >> $GITHUB_ENV
+
+      - name: Создание конфигурации Xray
         run: |
-          for i in {1..100}; do
-            curl -s "https://rscripts.net/script/velocity-v2-98percent-unc-keyless-zMEq" > /dev/null
-            echo "View $i sent"
-            sleep 1
-          done
+          mkdir -p /etc/xray
+          cat <<EOF > /etc/xray/config.json
+          {
+            "inbounds": [
+              {
+                "port": 443,
+                "protocol": "vless",
+                "settings": {
+                  "clients": [
+                    {
+                      "id": "$UUID",
+                      "flow": "xtls-rprx-vision"
+                    }
+                  ],
+                  "decryption": "none"
+                },
+                "streamSettings": {
+                  "network": "ws",
+                  "wsSettings": {
+                    "path": "/vless"
+                  }
+                }
+              }
+            ],
+            "outbounds": [
+              {
+                "protocol": "freedom",
+                "settings": {}
+              }
+            ]
+          }
+          EOF
+
+      - name: Запуск Xray
+        run: |
+          nohup ./xray/xray -c /etc/xray/config.json > xray.log 2>&1 &
+
+      - name: Вывод информации
+        run: |
+          echo "### VLESS Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "- **UUID:** $UUID" >> $GITHUB_STEP_SUMMARY
+          echo "- **Server IP:** $(curl -s ifconfig.me)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Port:** 443" >> $GITHUB_STEP_SUMMARY
+          echo "- **WebSocket Path:** /vless" >> $GITHUB_STEP_SUMMARY
