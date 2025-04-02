@@ -1,4 +1,4 @@
-name: Run Xray (VLESS) in GitHub Actions
+name: Run Xray (VLESS) in GitHub Actions with Tailscale
 
 on:
   workflow_dispatch:  # Запуск вручную
@@ -22,6 +22,11 @@ jobs:
 
       - name: Генерация UUID
         run: echo "UUID=$(cat /proc/sys/kernel/random/uuid)" >> $GITHUB_ENV
+
+      - name: Установка Tailscale
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+          sudo tailscale up --authkey=tskey-auth-kACuy7yZC711CNTRL-w6pX37eHwVUJBHTx1HYRWUrBtJ2D9E2rZ  # Токен для авторизации
 
       - name: Создание конфигурации Xray
         run: |
@@ -57,25 +62,23 @@ jobs:
           }
           EOF
 
-      - name: Установка Cloudflare Tunnel
-        run: |
-          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
-          chmod +x cloudflared
-
-      - name: Запуск Xray и Cloudflare Tunnel
+      - name: Запуск Xray и подключение через Tailscale
         run: |
           nohup ./xray/xray -c config.json > xray.log 2>&1 &
-          nohup ./cloudflared tunnel --url http://localhost:8080 > tunnel.log 2>&1 &
-          sleep 5  # Даем время Cloudflare запуститься
-          echo "TUNNEL_URL=$(grep -o 'https://.*trycloudflare.com' tunnel.log | head -1)" >> $GITHUB_ENV
+          sleep 5  # Даем Xray время запуститься
+
+      - name: Получение Tailscale IP
+        run: |
+          TAILSCALE_IP=$(tailscale ip -4)
+          echo "TAILSCALE_IP=$TAILSCALE_IP" >> $GITHUB_ENV
 
       - name: Вывод информации
         run: |
           echo "### VLESS Configuration" >> $GITHUB_STEP_SUMMARY
           echo "- **UUID:** $UUID" >> $GITHUB_STEP_SUMMARY
-          echo "- **Tunnel URL:** $TUNNEL_URL" >> $GITHUB_STEP_SUMMARY
-          echo "- **Port:** 443" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tailscale IP:** $TAILSCALE_IP" >> $GITHUB_STEP_SUMMARY
+          echo "- **Port:** 8080" >> $GITHUB_STEP_SUMMARY
           echo "- **WebSocket Path:** /vless" >> $GITHUB_STEP_SUMMARY
-          
+
       - name: Удержание процесса активным
         run: tail -f /dev/null
