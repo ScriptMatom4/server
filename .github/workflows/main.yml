@@ -22,8 +22,7 @@ jobs:
 
       - name: Создание конфигурации Xray
         run: |
-          mkdir -p /etc/xray
-          cat <<EOF > /etc/xray/config.json
+          cat <<EOF > config.json
           {
             "inbounds": [
               {
@@ -57,7 +56,7 @@ jobs:
 
       - name: Запуск Xray
         run: |
-          nohup ./xray/xray -c /etc/xray/config.json > xray.log 2>&1 &
+          nohup ./xray/xray -c config.json > xray.log 2>&1 &
 
       - name: Вывод информации
         run: |
